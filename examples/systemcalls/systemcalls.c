@@ -1,4 +1,14 @@
 #include "systemcalls.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <syslog.h>
+#include <errno.h>
+
+#define MAX_OUTPUT_STR          (128U)
 
 /**
  * @param cmd the command to execute with system()
@@ -16,8 +26,15 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+    int retVal;
+    bool retValBool = true;
 
-    return true;
+    retVal = system(cmd);
+    if (-1 == retVal)
+    {
+      retValBool = false;
+    }
+    return retValBool;
 }
 
 /**
@@ -40,14 +57,18 @@ bool do_exec(int count, ...)
     va_start(args, count);
     char * command[count+1];
     int i;
+    pid_t retForkPid;
+    pid_t retWaitPid;
+    int retValexecv;
+    bool retVal = true;
+    int status;
+
     for(i=0; i<count; i++)
     {
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
+    va_end(args);
 
 /*
  * TODO:
@@ -58,10 +79,50 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    openlog("[LOG Program]", LOG_PID | LOG_NDELAY ,LOG_USER);
+    fflush(stdout);
+    retForkPid = fork();
+    if (-1 == retForkPid)
+    {
+      syslog(LOG_ERR, "error with fork");
+      perror("Error With Fork");
+      retVal = false;
+    }
+    
+    if (0 == retForkPid)
+    {
+      syslog(LOG_INFO, "Run execv commands");
+      retValexecv = execv(command[0], command);
 
-    va_end(args);
+      if (-1 == retValexecv)
+      {
+        syslog(LOG_INFO, "Run execv commands[Line: %d][PID: %d]",__LINE__,getpid());
+        perror("Error with execv");
+        exit(errno);
+      }
+    }
+    else
+    {
+      do
+      {
+        retWaitPid = waitpid(retForkPid, &status, WUNTRACED | WCONTINUED);
+        if (-1 == retWaitPid)
+        {
+          syslog(LOG_ERR, "Error waiting PID");
+          perror("Error Waiting PID");
+          retVal = false;
+          exit(false);
+        }
+      } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+      syslog(LOG_INFO,"The Status is: %d [Line: %d][PID: %d]\n",WEXITSTATUS(status), __LINE__,retForkPid);
+      if(0 != WEXITSTATUS(status))
+      {
+        retVal = false;
+      }
+    }
+    closelog();
 
-    return true;
+    return retVal;
 }
 
 /**
@@ -75,16 +136,21 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     va_start(args, count);
     char * command[count+1];
     int i;
+    pid_t retForkPid;
+    pid_t retWaitPid;
+    int retValexecv;
+    bool retVal = true;
+    int status;
+    int fd;
+
     for(i=0; i<count; i++)
     {
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
+    va_end(args);
 
-
+    openlog("[LOG Program]", LOG_PID | LOG_NDELAY ,LOG_USER);
 /*
  * TODO
  *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
@@ -92,8 +158,65 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+    fd  = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    if (fd == -1)
+    {
+      perror("Erro with open");
+      retVal = false;
+      abort();
+    }
 
-    va_end(args);
 
-    return true;
+    openlog("[LOG Program]", LOG_PID | LOG_NDELAY ,LOG_USER);
+    fflush(stdout);
+    retForkPid = fork();
+    if (-1 == retForkPid)
+    {
+      syslog(LOG_ERR, "error with fork");
+      perror("Error With Fork");
+      retVal = false;
+    }
+    
+    if (0 == retForkPid)
+    {
+      if (dup2(fd,1) == -1)
+      {
+        perror("Error with dup2");
+        retVal = false;
+        abort();
+      } 
+      close(fd);
+      syslog(LOG_INFO, "Run execv commands");
+      retValexecv = execv(command[0], command);
+
+      if (-1 == retValexecv)
+      {
+        syslog(LOG_INFO, "Run execv commands[Line: %d][PID: %d]",__LINE__,getpid());
+        perror("Error with execv");
+        exit(errno);
+      }
+
+    }
+    else
+    {
+      do
+      {
+        retWaitPid = waitpid(retForkPid, &status, WUNTRACED | WCONTINUED);
+        if (-1 == retWaitPid)
+        {
+          syslog(LOG_ERR, "Error waiting PID");
+          perror("Error Waiting PID");
+          retVal = false;
+          exit(false);
+        }
+      } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+      syslog(LOG_INFO,"The Status is: %d [Line: %d][PID: %d]\n",WEXITSTATUS(status), __LINE__,retForkPid);
+      if(0 != WEXITSTATUS(status))
+      {
+        retVal = false;
+      }
+    }
+    closelog();
+
+    return retVal;
 }
