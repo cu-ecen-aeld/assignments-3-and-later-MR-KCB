@@ -66,8 +66,8 @@ int main(int argc, char *argv[])
       else
       {
         retVal = 0;
-        snprintf(printStr, sizeof(printStr), "Writting %s to %s", argv[2], argv[1]);
-        syslog(LOG_DEBUG,printStr);
+        //snprintf(printStr, sizeof(printStr), "Writting %s to %s", argv[2], argv[1]);
+        //syslog(LOG_DEBUG,printStr);
       }
     }
     fclose(fptr);

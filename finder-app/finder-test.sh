@@ -7,8 +7,9 @@ set -u
 
 NUMFILES=10
 WRITESTR=AELD_IS_FUN
-WRITEDIR=/tmp
+WRITEDIR=/tmp/aesd-data
 username=$(cat /etc/finder-app/conf/username.txt)
+OUT_FILE=/tmp/assigment4-result.txt
 
 if [ $# -lt 3 ]
 then
@@ -22,7 +23,7 @@ then
 else
 	NUMFILES=$1
 	WRITESTR=$2
-	WRITEDIR=/tmp/$3
+	WRITEDIR=/tmp/aesd-data/$3
 fi
 
 MATCHSTR="The number of files are ${NUMFILES} and the number of matching lines are ${NUMFILES}"
@@ -54,13 +55,15 @@ fi
 
 for i in $( seq 1 $NUMFILES)
 do
-	./writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
+	writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
 done
 
-OUTPUTSTRING=$(./finder.sh "$WRITEDIR" "$WRITESTR")
+OUTPUTSTRING=$(finder.sh "$WRITEDIR" "$WRITESTR")
+
+echo "$OUTPUTSTRING" > "$OUT_FILE"
 
 # remove temporary directories
-rm -rf /tmp/"$WRITEDIR/${username}*.txt"
+rm -rf /tmp/aesd-data/"$WRITEDIR/${username}*.txt"
 
 set +e
 echo ${OUTPUTSTRING} | grep "${MATCHSTR}"
