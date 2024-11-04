@@ -1,0 +1,13 @@
+#!/bin/sh
+
+if [ $1 = "start" ]
+then
+echo "Running Start command"
+aesdsocket -d
+fi
+
+if [ $1 = "stop" ]
+then
+echo "Running Stops command"
+kill $(ps aux | grep "aesdsocket -d" | grep -v "grep" | awk '{print $2}')
+fi
